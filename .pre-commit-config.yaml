@@ -1,0 +1,30 @@
+# Pre-commit hooks run security checks on YOUR machine before a commit is even
+# created — the leftmost point of "shift-left". A secret or an obvious bug gets
+# caught before it ever reaches the repo, which is far cheaper than catching it
+# in CI (or in prod).
+#
+# Setup:
+#   pip install pre-commit
+#   pre-commit install            # wires the hooks into .git/hooks
+#   pre-commit run --all-files    # run them on demand
+#
+# After this, `git commit` runs Gitleaks, Bandit (Python SAST) and Checkov
+# (IaC) automatically and blocks the commit if they find something.
+
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.4
+    hooks:
+      - id: gitleaks
+
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.9
+    hooks:
+      - id: bandit
+        args: ["-r", "app"]
+
+  - repo: https://github.com/bridgecrewio/checkov
+    rev: 3.2.257
+    hooks:
+      - id: checkov
+        args: ["-d", "terraform"]

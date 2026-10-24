@@ -1,0 +1,16 @@
+# Optional Gitleaks config. Gitleaks ships with a strong default ruleset, so
+# this file mostly exists to show you how teams customise it:
+#   - extend the defaults rather than replacing them
+#   - add an allowlist so KNOWN test/demo secrets don't create permanent noise
+#
+# For this lab we WANT the planted secrets to be found, so the allowlist below
+# is commented out. In a real repo you'd allowlist genuine false positives only.
+
+[extend]
+useDefault = true
+
+# [[allowlists]]
+# description = "Ignore documented example/test secrets"
+# regexes = [
+#   '''sk_live_51H8xWqLkd9f0EXAMPLE.*''',
+# ]

@@ -1,0 +1,24 @@
+# Dependabot is GitHub's built-in SCA + updater. Once this file is on your
+# default branch, GitHub automatically opens pull requests to bump vulnerable or
+# outdated dependencies. It covers three ecosystems in this repo: Python
+# packages, the Docker base image, and the GitHub Actions you pin above.
+#
+# Enable "Dependabot alerts" and "Dependabot security updates" under
+# Settings > Code security for the alerting side (free on public repos).
+
+version: 2
+updates:
+  - package-ecosystem: "pip"
+    directory: "/app"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"

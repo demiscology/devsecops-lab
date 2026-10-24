@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+users.db
+.env
+venv/
+.venv/
+*.sarif
+zap-out/
+zap-report.*
+.terraform/
+*.tfstate
+*.tfstate.*

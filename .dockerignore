@@ -1,0 +1,11 @@
+# Keep build context small and avoid baking local junk/secrets into image layers.
+.git
+.github
+terraform
+*.md
+__pycache__/
+*.pyc
+users.db
+.env
+venv/
+.venv/

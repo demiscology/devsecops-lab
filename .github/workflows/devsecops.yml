@@ -1,0 +1,255 @@
+###############################################################################
+# DevSecOps pipeline — runs all five security scan families on every push/PR.
+#
+#   secrets-scan        Gitleaks           — secrets committed to the repo/history
+#   sast-semgrep        Semgrep            — vulnerabilities in OUR source code
+#   sast-codeql         CodeQL             — deeper dataflow SAST (GitHub native)
+#   sca-trivy           Trivy (fs)         — known CVEs in our DEPENDENCIES (SCA)
+#   iac-checkov         Checkov            — misconfigurations in Terraform (IaC)
+#   container-scan      Trivy (image)      — CVEs + misconfig in the Docker image
+#   dast-zap            OWASP ZAP          — attacks the RUNNING app from outside
+#
+# Every job that can produce SARIF uploads it to GitHub's "Security > Code
+# scanning" tab, so all findings land in one place. On a PUBLIC repo this is
+# free; on a private repo, SARIF upload + secret scanning need GitHub Advanced
+# Security (paid). Use a public repo for this lab.
+#
+# The jobs are intentionally NON-blocking here (they report but don't fail the
+# build) so you can see every finding at once. The comments show the one-line
+# change that turns each into a hard gate.
+###############################################################################
+
+name: DevSecOps Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch: # lets you run it manually from the Actions tab
+
+# These permissions let the jobs write results into the Security tab.
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+jobs:
+  # ===========================================================================
+  # 1. SECRETS SCANNING — find committed credentials (Gitleaks)
+  # ===========================================================================
+  secrets-scan:
+    name: Secrets scanning (Gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # fetch-depth: 0 pulls the FULL git history. Secrets live in old
+          # commits even after you "delete" them in a later commit, so history
+          # is exactly what you want to scan.
+          fetch-depth: 0
+
+      - name: Install Gitleaks
+        run: |
+          VERSION=8.18.4
+          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz" -o gitleaks.tgz
+          tar -xzf gitleaks.tgz gitleaks
+          sudo mv gitleaks /usr/local/bin/
+
+      - name: Run Gitleaks
+        # `detect` scans the whole git history. --exit-code 0 keeps the job
+        # green so results still upload; change to `--exit-code 1` to BLOCK a
+        # PR when a secret is found (the usual production setting).
+        run: gitleaks detect --report-format sarif --report-path gitleaks.sarif --exit-code 0 --redact
+
+      - name: Upload results to Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: gitleaks.sarif
+          category: gitleaks
+
+  # ===========================================================================
+  # 2. SAST (Semgrep) — static analysis of our own code
+  # ===========================================================================
+  sast-semgrep:
+    name: SAST (Semgrep)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Semgrep
+        run: pip install semgrep
+
+      - name: Run Semgrep
+        # Public rule packs from the Semgrep Registry — no account needed.
+        #   p/ci       a sane default set     p/python   language rules
+        #   p/flask    framework rules        p/secrets  hardcoded secrets
+        # `|| true` keeps the job green; drop it to fail on findings.
+        run: |
+          semgrep scan \
+            --config=p/ci --config=p/python --config=p/flask --config=p/secrets \
+            --sarif --output=semgrep.sarif || true
+
+      - name: Upload results to Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep
+
+  # ===========================================================================
+  # 3. SAST (CodeQL) — GitHub's semantic/dataflow engine
+  # ===========================================================================
+  sast-codeql:
+    name: SAST (CodeQL)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: python
+          # "security-extended" adds more (higher-recall) security queries than
+          # the default pack.
+          queries: security-extended
+
+      # Python is interpreted, so no build step is needed. For compiled
+      # languages you'd add `github/codeql-action/autobuild@v3` here.
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        # This step uploads its SARIF to the Security tab automatically.
+
+  # ===========================================================================
+  # 4. SCA (Trivy filesystem) — known CVEs in third-party dependencies
+  # ===========================================================================
+  sca-trivy:
+    name: SCA / dependency scan (Trivy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs          # scan the repo's dependency manifests
+          scan-ref: .
+          scanners: vuln         # just CVEs for this job
+          format: sarif
+          output: trivy-sca.sarif
+          severity: CRITICAL,HIGH,MEDIUM
+          exit-code: "0"         # report-only; "1" would block on findings
+
+      - name: Upload results to Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-sca.sarif
+          category: trivy-sca
+
+  # ===========================================================================
+  # 5. IaC SCANNING (Checkov) — Terraform misconfiguration
+  # ===========================================================================
+  iac-checkov:
+    name: IaC scan (Checkov)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Checkov
+        run: pip install checkov
+
+      - name: Run Checkov on Terraform
+        # With a single `-o` format, Checkov writes SARIF to stdout, so we
+        # redirect it to a file. `|| true` keeps the job green.
+        run: checkov -d terraform --output sarif > checkov.sarif || true
+
+      - name: Upload results to Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: checkov.sarif
+          category: checkov
+
+  # ===========================================================================
+  # 6. CONTAINER SCANNING (Trivy image) — CVEs + misconfig in the built image
+  # ===========================================================================
+  container-scan:
+    name: Container image scan (Trivy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the Docker image
+        run: docker build -t devsecops-lab:ci .
+
+      - name: Trivy image scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: image
+          image-ref: devsecops-lab:ci
+          # vuln = OS + app package CVEs; misconfig = Dockerfile best practices;
+          # secret = secrets baked into layers.
+          scanners: vuln,misconfig,secret
+          format: sarif
+          output: trivy-image.sarif
+          severity: CRITICAL,HIGH
+          exit-code: "0"
+
+      - name: Upload results to Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-image.sarif
+          category: trivy-image
+
+  # ===========================================================================
+  # 7. DAST (OWASP ZAP) — attack the running app from the outside
+  # ===========================================================================
+  dast-zap:
+    name: DAST (OWASP ZAP baseline)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and start the app
+        run: |
+          docker build -t devsecops-lab:ci .
+          docker run -d --name vulnapp -p 5000:5000 devsecops-lab:ci
+          # Wait for the app to answer before scanning.
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:5000/ >/dev/null; then echo "up"; break; fi
+            sleep 2
+          done
+
+      - name: Run ZAP baseline scan
+        run: |
+          mkdir -p zap-out && chmod 777 zap-out
+          # --network host lets the ZAP container reach the app on the runner's
+          # localhost. zap-baseline.py spiders the app and runs PASSIVE checks
+          # (safe, fast). For deeper ACTIVE attack testing use zap-full-scan.py.
+          docker run --rm --network host \
+            -v "$(pwd)/zap-out:/zap/wrk/:rw" \
+            ghcr.io/zaproxy/zaproxy:stable \
+            zap-baseline.py -t http://localhost:5000 \
+            -r zap-report.html -J zap-report.json -I || true
+
+      - name: Upload ZAP report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: zap-report
+          path: zap-out/
