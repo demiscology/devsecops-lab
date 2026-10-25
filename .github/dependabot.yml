@@ -12,6 +12,12 @@ updates:
     directory: "/app"
     schedule:
       interval: "weekly"
+    # Group all Python bumps into ONE PR. Separate PRs conflict with each
+    # other's pins (e.g. Flask 3.x needs Werkzeug 3.x, so a lone Flask bump
+    # can't install and breaks the Docker build).
+    groups:
+      python-deps:
+        patterns: ["*"]
 
   - package-ecosystem: "docker"
     directory: "/"
@@ -22,3 +28,6 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    groups:
+      actions:
+        patterns: ["*"]
