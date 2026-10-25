@@ -4,10 +4,12 @@
 # scanner (Trivy) and the Dockerfile/IaC misconfiguration checks have things
 # to flag. Each problem is commented. The "good" version is described in GUIDE.md.
 
-# BAD: a full, fat base image (hundreds of OS packages = a large CVE surface),
-# and pinned to a minor tag rather than a digest. A hardened build would use a
-# slim/distroless image pinned by sha256 digest.
-FROM python:3.9
+# Base image: Python 3.12 slim. The updated dependencies need Python >= 3.10
+# (requests 2.34 dropped 3.9), and slim carries far fewer OS packages than the
+# full image, so Trivy reports far fewer OS CVEs.
+# STILL NOT IDEAL: pinned to a tag rather than an immutable sha256 digest;
+# distroless would shrink the attack surface further.
+FROM python:3.12-slim
 
 # BAD: installing extra tooling you don't need at runtime (curl) widens the
 # attack surface, and apt packages are unpinned so the build isn't reproducible.
