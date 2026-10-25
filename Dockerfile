@@ -7,7 +7,7 @@
 # BAD: a full, fat base image (hundreds of OS packages = a large CVE surface),
 # and pinned to a minor tag rather than a digest. A hardened build would use a
 # slim/distroless image pinned by sha256 digest.
-FROM python:3.9
+FROM python:3.10
 
 # BAD: installing extra tooling you don't need at runtime (curl) widens the
 # attack surface, and apt packages are unpinned so the build isn't reproducible.
