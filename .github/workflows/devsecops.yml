@@ -14,6 +14,11 @@
 # free; on a private repo, SARIF upload + secret scanning need GitHub Advanced
 # Security (paid). Use a public repo for this lab.
 #
+# Every action is pinned by full commit SHA, not tag (Dependabot still bumps
+# them and updates the version comment). Tags are mutable:
+# in March 2026 attackers force-pushed malicious code onto 76 of 77
+# aquasecurity/trivy-action tags (CVE-2026-33634). A SHA can't be repointed.
+#
 # The jobs are intentionally NON-blocking here (they report but don't fail the
 # build) so you can see every finding at once. The comments show the one-line
 # change that turns each into a hard gate.
@@ -41,7 +46,7 @@ jobs:
     name: Secrets scanning (Gitleaks)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # fetch-depth: 0 pulls the FULL git history. Secrets live in old
           # commits even after you "delete" them in a later commit, so history
@@ -62,7 +67,7 @@ jobs:
         run: gitleaks detect --report-format sarif --report-path gitleaks.sarif --exit-code 0 --redact
 
       - name: Upload results to Security tab
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         if: always()
         with:
           sarif_file: gitleaks.sarif
@@ -75,9 +80,9 @@ jobs:
     name: SAST (Semgrep)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.11"
 
@@ -95,7 +100,7 @@ jobs:
             --sarif --output=semgrep.sarif || true
 
       - name: Upload results to Security tab
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         if: always()
         with:
           sarif_file: semgrep.sarif
@@ -112,10 +117,10 @@ jobs:
       security-events: write
       packages: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         with:
           languages: python
           # "security-extended" adds more (higher-recall) security queries than
@@ -126,7 +131,7 @@ jobs:
       # languages you'd add `github/codeql-action/autobuild@v3` here.
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         # This step uploads its SARIF to the Security tab automatically.
 
   # ===========================================================================
@@ -136,10 +141,10 @@ jobs:
     name: SCA / dependency scan (Trivy)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Trivy filesystem scan
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: fs          # scan the repo's dependency manifests
           scan-ref: .
@@ -150,7 +155,7 @@ jobs:
           exit-code: "0"         # report-only; "1" would block on findings
 
       - name: Upload results to Security tab
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         if: always()
         with:
           sarif_file: trivy-sca.sarif
@@ -163,9 +168,9 @@ jobs:
     name: IaC scan (Checkov)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.11"
 
@@ -173,15 +178,17 @@ jobs:
         run: pip install checkov
 
       - name: Run Checkov on Terraform
-        # With a single `-o` format, Checkov writes SARIF to stdout, so we
-        # redirect it to a file. `|| true` keeps the job green.
-        run: checkov -d terraform --output sarif > checkov.sarif || true
+        # --output-file-path makes Checkov write clean SARIF to
+        # checkov-out/results_sarif.sarif. (Redirecting stdout does NOT work:
+        # stdout also carries the banner + text summary, giving invalid JSON.)
+        # `|| true` keeps the job green; drop it to fail on findings.
+        run: checkov -d terraform --output sarif --output-file-path checkov-out || true
 
       - name: Upload results to Security tab
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         if: always()
         with:
-          sarif_file: checkov.sarif
+          sarif_file: checkov-out/results_sarif.sarif
           category: checkov
 
   # ===========================================================================
@@ -191,13 +198,13 @@ jobs:
     name: Container image scan (Trivy)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Build the Docker image
         run: docker build -t devsecops-lab:ci .
 
       - name: Trivy image scan
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: image
           image-ref: devsecops-lab:ci
@@ -210,7 +217,7 @@ jobs:
           exit-code: "0"
 
       - name: Upload results to Security tab
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         if: always()
         with:
           sarif_file: trivy-image.sarif
@@ -223,7 +230,7 @@ jobs:
     name: DAST (OWASP ZAP baseline)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Build and start the app
         run: |
@@ -248,7 +255,7 @@ jobs:
             -r zap-report.html -J zap-report.json -I || true
 
       - name: Upload ZAP report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: zap-report
