@@ -41,7 +41,7 @@ jobs:
     name: Secrets scanning (Gitleaks)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # fetch-depth: 0 pulls the FULL git history. Secrets live in old
           # commits even after you "delete" them in a later commit, so history
@@ -75,7 +75,7 @@ jobs:
     name: SAST (Semgrep)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-python@v5
         with:
@@ -112,7 +112,7 @@ jobs:
       security-events: write
       packages: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
@@ -136,7 +136,7 @@ jobs:
     name: SCA / dependency scan (Trivy)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Trivy filesystem scan
         uses: aquasecurity/trivy-action@0.28.0
@@ -163,7 +163,7 @@ jobs:
     name: IaC scan (Checkov)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-python@v5
         with:
@@ -191,7 +191,7 @@ jobs:
     name: Container image scan (Trivy)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Build the Docker image
         run: docker build -t devsecops-lab:ci .
@@ -223,7 +223,7 @@ jobs:
     name: DAST (OWASP ZAP baseline)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Build and start the app
         run: |
