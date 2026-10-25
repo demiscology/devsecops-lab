@@ -68,7 +68,9 @@ jobs:
 
       - name: Upload results to Security tab
         uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
-        if: always()
+        # Upload even if the scan reported findings, but skip if it never ran
+        # (e.g. the Docker build failed), so no misleading "path does not exist".
+        if: always() && hashFiles('gitleaks.sarif') != ''
         with:
           sarif_file: gitleaks.sarif
           category: gitleaks
@@ -101,7 +103,9 @@ jobs:
 
       - name: Upload results to Security tab
         uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
-        if: always()
+        # Upload even if the scan reported findings, but skip if it never ran
+        # (e.g. the Docker build failed), so no misleading "path does not exist".
+        if: always() && hashFiles('semgrep.sarif') != ''
         with:
           sarif_file: semgrep.sarif
           category: semgrep
@@ -156,7 +160,9 @@ jobs:
 
       - name: Upload results to Security tab
         uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
-        if: always()
+        # Upload even if the scan reported findings, but skip if it never ran
+        # (e.g. the Docker build failed), so no misleading "path does not exist".
+        if: always() && hashFiles('trivy-sca.sarif') != ''
         with:
           sarif_file: trivy-sca.sarif
           category: trivy-sca
@@ -186,7 +192,9 @@ jobs:
 
       - name: Upload results to Security tab
         uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
-        if: always()
+        # Upload even if the scan reported findings, but skip if it never ran
+        # (e.g. the Docker build failed), so no misleading "path does not exist".
+        if: always() && hashFiles('checkov-out/results_sarif.sarif') != ''
         with:
           sarif_file: checkov-out/results_sarif.sarif
           category: checkov
@@ -218,7 +226,9 @@ jobs:
 
       - name: Upload results to Security tab
         uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
-        if: always()
+        # Upload even if the scan reported findings, but skip if it never ran
+        # (e.g. the Docker build failed), so no misleading "path does not exist".
+        if: always() && hashFiles('trivy-image.sarif') != ''
         with:
           sarif_file: trivy-image.sarif
           category: trivy-image
