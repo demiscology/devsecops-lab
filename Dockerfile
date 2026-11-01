@@ -9,7 +9,7 @@
 # full image, so Trivy reports far fewer OS CVEs.
 # STILL NOT IDEAL: pinned to a tag rather than an immutable sha256 digest;
 # distroless would shrink the attack surface further.
-FROM python:3.12-slim
+FROM python:3.15-slim
 
 # BAD: installing extra tooling you don't need at runtime (curl) widens the
 # attack surface, and apt packages are unpinned so the build isn't reproducible.
